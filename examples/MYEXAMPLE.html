@@ -82,6 +82,27 @@
 					}
 				})
 
+				// Overrides method to provide a cell label in the display
+				graph.convertValueToString = function (cell) {
+					if (mxUtils.isNode(cell.value)) {
+						//if (cell.value.nodeName.toLowerCase() === 'variable')
+						return cell.getAttribute('name', '')
+					}
+				}
+
+				// Overrides method to store a cell label in the model
+				const cellLabelChanged = graph.cellLabelChanged
+				graph.cellLabelChanged = function (cell, newValue, autoSize) {
+					if (mxUtils.isNode(cell.value)) {
+						//if (cell.value.nodeName.toLowerCase() === 'person')
+						// Clones the value for correct undo/redo
+						const elt = cell.value.cloneNode(true)
+						elt.setAttribute('name', newValue)
+						newValue = elt
+					}
+					cellLabelChanged.apply(this, arguments)
+				}
+
 				// Add toolbar items
 				const addVertex = function (icon, w, h, style) {
 					//const vertex = new mxCell(null, new mxGeometry(0, 0, w, h), style)
