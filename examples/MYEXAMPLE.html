@@ -71,6 +71,18 @@
 				graph.setCellsDisconnectable(false)
 				graph.setAllowDanglingEdges(false)
 
+				graph.multiplicities.push(new mxMultiplicity(
+					false, 'Variable', null, null, 0, 1, ['Operation'],
+					'Variable should be immutable', null))
+
+				graph.multiplicities.push(new mxMultiplicity(
+					true, 'Variable', null, null, 0, 0, ['Variable'],
+					'You cannot variables to variables', null))
+
+				graph.multiplicities.push(new mxMultiplicity(
+					true, 'Operation', null, null, 0, 0, ['Operation'],
+					'You cannot operations to operations', null))
+
 				// Enables rubberband selection
 				const rubberband = new mxRubberband(graph)
 
@@ -103,6 +115,32 @@
 					cellLabelChanged.apply(this, arguments)
 				}
 
+				// Shows a "modal" window when double clicking a vertex. TODO
+				/*graph.dblClick = function (event, cell) {
+					// Do not fire a DOUBLE_CLICK event here as mxEditor will
+					// consume the event and start the in-place editor.
+					if (this.isEnabled() &&	!mxEvent.isConsumed(event) &&
+						cell != null &&	this.isCellEditable(cell)) {
+						if (this.model.isEdge(cell)) {
+							this.startEditingAtCell(cell)
+						} else {
+							var content = document.createElement('div')
+
+							// Creates the form from the attributes of the user object
+							var form = new mxForm()
+							var attrs = cell.value.attributes
+							for (var i = 0; i < attrs.length; i++) {
+								createTextField(graph, form, cell, attrs[i])
+							}
+							content.appendChild(form.getTable())
+							showModalWindow(this, 'Properties', content, 400, 300)
+						}
+					}
+
+					// Disables any default behaviour for the double click
+					mxEvent.consume(event)
+				}*/
+
 				// Add toolbar items
 				const addVertex = function (icon, w, h, style) {
 					//const vertex = new mxCell(null, new mxGeometry(0, 0, w, h), style)
@@ -121,6 +159,76 @@
 				addVertex('editors/images/rounded.gif', 40, 40, 'shape=ellipse')
 			}
 		}
+
+		// double click - properties window TODO
+		/*function showModalWindow (graph, title, content, width, height) {
+			const background = document.createElement('div')
+			background.style.position = 'absolute'
+			background.style.left = '0px'
+			background.style.top = '0px'
+			background.style.right = '0px'
+			background.style.bottom = '0px'
+			background.style.background = 'black'
+			mxUtils.setOpacity(background, 50)
+			document.body.appendChild(background)
+
+			if (mxClient.IS_IE) {
+				new mxDivResizer(background)
+			}
+
+			const x = Math.max(0, document.body.scrollWidth / 2 - width / 2)
+			const y = Math.max(10, (document.body.scrollHeight ||
+				document.documentElement.scrollHeight) / 2 - height * 2 / 3)
+			const wnd = new mxWindow(title, content, x, y, width, height, false, true)
+			wnd.setClosable(true)
+
+			// Fades the background out after after the window has been closed
+			wnd.addListener(mxEvent.DESTROY, function (event) {
+				graph.setEnabled(true)
+				mxEffects.fadeOut(background, 50, true, 10, 30, true)
+			})
+
+			graph.setEnabled(false)
+			graph.tooltipHandler.hide()
+			wnd.setVisible(true)
+		}*/
+
+		// Creates the text field for the given property (in modal window)
+		/*function createTextField (graph, form, cell, attribute) {
+			const input = form.addText(attribute.nodeName + ':', attribute.nodeValue)
+
+			const applyHandler = function () {
+				const newValue = input.value || ''
+				const oldValue = cell.getAttribute(attribute.nodeName, '')
+
+				if (newValue !== oldValue) {
+					graph.getModel().beginUpdate()
+					try {
+						const edit = new mxCellAttributeChange(cell, attribute.nodeName, newValue)
+						graph.getModel().execute(edit)
+					} finally {
+						graph.getModel().endUpdate()
+					}
+				}
+			}
+
+			mxEvent.addListener(input, 'keypress', function (event) {
+				// Needs to take shift into account for text areas
+				if (event.key === 'Escape' && !mxEvent.isShiftDown(event)) {
+					input.blur()
+				}
+			})
+
+			if (mxClient.IS_IE) {
+				mxEvent.addListener(input, 'focusout', applyHandler)
+			} else {
+				// Note: Known problem is the blurring of fields in Firefox by changing the selection,
+				// in which case no event is fired in FF and the change is lost.
+				// As a workaround you should use a local variable that stores the focused field and
+				// invoke blur explicitly where we do the graph.focus above.
+				mxEvent.addListener(input, 'blur', applyHandler)
+			}
+		}*/
 
 		function addToolbarItem (graph, toolbar, w, h, style, image, xmlDocument) {
 			// Function that is executed when the image is dropped on the graph.
