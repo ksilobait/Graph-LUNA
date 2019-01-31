@@ -18,7 +18,7 @@
 	<script type="text/javascript">
 		// Program starts here. Creates a sample graph in the DOM node with the specified ID.
 		// This function is invoked from the onLoad event handler of the document (see below).
-		function main () {
+		function main (container, toolbar, sidebarContainer) {
 			// Checks if browser is supported
 			if (!mxClient.isBrowserSupported()) {
 				// Displays an error message if the browser is not supported.
@@ -31,63 +31,33 @@
 				// This will automatically disable the highlighting of the source vertex.
 				mxConnectionHandler.prototype.connectImage = new mxImage('images/connector.gif', 16, 16)
 
-				// Creates the div for the sidebar
-				const sidebarContainer = document.createElement('div')
-				sidebarContainer.style.position = 'absolute'
-				sidebarContainer.style.overflow = 'hidden'
-				sidebarContainer.style.padding = '2px'
-				sidebarContainer.style.left = '0px'
-				sidebarContainer.style.top = '36px'
-				sidebarContainer.style.width = '24px'
-				sidebarContainer.style.bottom = '0px'
-				document.body.appendChild(sidebarContainer)
-
-				// Creates new sidebar without event processing
+				// creates new sidebar without event processing
 				const sidebar = new mxToolbar(sidebarContainer)
 				sidebar.enabled = false
-
-				// Creates the div for the toolbar
-				const toolbarContainer = document.createElement('div')
-				toolbarContainer.style.position = 'absolute'
-				toolbarContainer.style.whiteSpace = 'nowrap'
-				toolbarContainer.style.overflow = 'hidden'
-				toolbarContainer.style.padding = '6px'
-				toolbarContainer.style.left = '0px'
-				toolbarContainer.style.right = '0px'
-				toolbarContainer.style.top = '0px'
-				toolbarContainer.style.maxHeight = '24px'
-				toolbarContainer.style.height = '36px'
-				toolbarContainer.style.backgroundImage = 'url(images/toolbar_bg.gif)'
-				document.body.appendChild(toolbarContainer)
-
-				// Creates new sidebar without event processing
-				const toolbar = new mxToolbar(toolbarContainer)
-				toolbar.enabled = false
-
-				// Creates the div for the graph
-				const container = document.createElement('div')
-				container.style.position = 'absolute'
-				container.style.overflow = 'hidden'
-				container.style.left = '24px'
-				container.style.top = '36px'
-				container.style.right = '0px'
-				container.style.bottom = '0px'
-				container.style.background = 'url("editors/images/grid.gif")'
-				document.body.appendChild(container)
 
 				// Workaround for Internet Explorer ignoring certain styles
 				if (mxClient.IS_QUIRKS) {
 					document.body.style.overflow = 'hidden'
-					new mxDivResizer(sidebarContainer)
 					new mxDivResizer(container)
+					new mxDivResizer(toolbar)
+					new mxDivResizer(sidebar)
 				}
 
-				// Creates the graph inside the given container
-				const graph = new mxGraph(container)
+				// Creates the graph inside the given container.
+				// The editor is used to create certain functionality for the graph, such as the rubberband selection,
+				// but most parts of the UI are custom in this example.
+				var editor = new mxEditor()
+				var graph = editor.graph
+				var model = graph.model
+
+				// Disables some global features
 				graph.setConnectable(true)
 				graph.setMultigraph(false)
 				graph.setCellsDisconnectable(false)
 				graph.setAllowDanglingEdges(false)
+
+				// Sets the graph container
+				editor.setGraphContainer(container)
 
 				/*
 				graph.multiplicities.push(new mxMultiplicity(
@@ -160,6 +130,20 @@
 					// Disables any default behaviour for the double click
 					mxEvent.consume(event)
 				}*/
+
+				// Add toolbar items TODO
+				// addToolbarButton(editor, toolbar, 'showSql', 'Show SQL', 'images/export1.png')
+
+				// Defines export XML action
+				editor.addAction('export', function (editor, cell) {
+					var textarea = document.createElement('textarea')
+					textarea.style.width = '400px'
+					textarea.style.height = '400px'
+					var enc = new mxCodec(mxUtils.createXmlDocument())
+					var node = enc.encode(editor.graph.getModel())
+					textarea.value = mxUtils.getPrettyXml(node)
+					showModalWindow('XML', textarea, 410, 440)
+				})
 
 				// Add sidebar items
 				const addVertex = function (icon, w, h, style) {
@@ -301,5 +285,23 @@
 </head>
 
 <!-- Calls the main function after the page has loaded. Container is dynamically created. -->
-<body onload="main();"></body>
+<body onload="main(document.getElementById('graphContainer'),
+			document.getElementById('toolbarContainer'),
+			document.getElementById('sidebarContainer'));"></body>
+
+<!-- Creates a container for the graph -->
+<div id="graphContainer"
+     style="position:absolute;overflow:hidden;top:36px;left:24px;bottom:0px;right:0px;background-image:url('editors/images/grid.gif');">
+</div>
+
+<!-- Creates a container for the toolbar -->
+<div id="toolbarContainer"
+     style="position:absolute;white-space:nowrap;overflow:hidden;top:0px;left:0px;max-height:24px;height:36px;right:0px;padding:6px;background-image:url('images/toolbar_bg.gif');">
+</div>
+
+<!-- Creates a container for the sidebar -->
+<div id="sidebarContainer"
+     style="position:absolute;overflow:hidden;top:36px;left:0px;bottom:0px;width:24px;padding:2px;">
+</div>
+
 </html>
