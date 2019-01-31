@@ -31,18 +31,36 @@
 				// This will automatically disable the highlighting of the source vertex.
 				mxConnectionHandler.prototype.connectImage = new mxImage('images/connector.gif', 16, 16)
 
+				// Creates the div for the sidebar
+				const sidebarContainer = document.createElement('div')
+				sidebarContainer.style.position = 'absolute'
+				sidebarContainer.style.overflow = 'hidden'
+				sidebarContainer.style.padding = '2px'
+				sidebarContainer.style.left = '0px'
+				sidebarContainer.style.top = '36px'
+				sidebarContainer.style.width = '24px'
+				sidebarContainer.style.bottom = '0px'
+				document.body.appendChild(sidebarContainer)
+
+				// Creates new sidebar without event processing
+				const sidebar = new mxToolbar(sidebarContainer)
+				sidebar.enabled = false
+
 				// Creates the div for the toolbar
 				const toolbarContainer = document.createElement('div')
 				toolbarContainer.style.position = 'absolute'
+				toolbarContainer.style.whiteSpace = 'nowrap'
 				toolbarContainer.style.overflow = 'hidden'
-				toolbarContainer.style.padding = '2px'
+				toolbarContainer.style.padding = '6px'
 				toolbarContainer.style.left = '0px'
+				toolbarContainer.style.right = '0px'
 				toolbarContainer.style.top = '0px'
-				toolbarContainer.style.width = '24px'
-				toolbarContainer.style.bottom = '0px'
+				toolbarContainer.style.maxHeight = '24px'
+				toolbarContainer.style.height = '36px'
+				toolbarContainer.style.backgroundImage = 'url(images/toolbar_bg.gif)'
 				document.body.appendChild(toolbarContainer)
 
-				// Creates new toolbar without event processing
+				// Creates new sidebar without event processing
 				const toolbar = new mxToolbar(toolbarContainer)
 				toolbar.enabled = false
 
@@ -51,7 +69,7 @@
 				container.style.position = 'absolute'
 				container.style.overflow = 'hidden'
 				container.style.left = '24px'
-				container.style.top = '0px'
+				container.style.top = '36px'
 				container.style.right = '0px'
 				container.style.bottom = '0px'
 				container.style.background = 'url("editors/images/grid.gif")'
@@ -60,7 +78,7 @@
 				// Workaround for Internet Explorer ignoring certain styles
 				if (mxClient.IS_QUIRKS) {
 					document.body.style.overflow = 'hidden'
-					new mxDivResizer(toolbarContainer)
+					new mxDivResizer(sidebarContainer)
 					new mxDivResizer(container)
 				}
 
@@ -71,17 +89,19 @@
 				graph.setCellsDisconnectable(false)
 				graph.setAllowDanglingEdges(false)
 
+				/*
 				graph.multiplicities.push(new mxMultiplicity(
 					false, 'Variable', null, null, 0, 1, ['Operation'],
 					'Variable should be immutable', null))
 
 				graph.multiplicities.push(new mxMultiplicity(
-					true, 'Variable', null, null, 0, 0, ['Variable'],
-					'You cannot variables to variables', null))
+					false, 'Variable', null, null, 0, 0, ['Variable'],
+					'You cannot connect variables to variables', null))
 
 				graph.multiplicities.push(new mxMultiplicity(
-					true, 'Operation', null, null, 0, 0, ['Operation'],
-					'You cannot operations to operations', null))
+					false, 'Operation', null, null, 0, 0, ['Operation'],
+					'You cannot connect operations to operations', null))
+					*/
 
 				// Enables rubberband selection
 				const rubberband = new mxRubberband(graph)
@@ -97,7 +117,7 @@
 				// Overrides method to provide a cell label in the display
 				graph.convertValueToString = function (cell) {
 					if (mxUtils.isNode(cell.value)) {
-						//if (cell.value.nodeName.toLowerCase() === 'variable')
+						//if (cell.value.nodeName === 'Variable')
 						return cell.getAttribute('name', '')
 					}
 				}
@@ -106,7 +126,7 @@
 				const cellLabelChanged = graph.cellLabelChanged
 				graph.cellLabelChanged = function (cell, newValue, autoSize) {
 					if (mxUtils.isNode(cell.value)) {
-						//if (cell.value.nodeName.toLowerCase() === 'person')
+						//if (cell.value.nodeName === 'Variable')
 						// Clones the value for correct undo/redo
 						const elt = cell.value.cloneNode(true)
 						elt.setAttribute('name', newValue)
@@ -141,11 +161,11 @@
 					mxEvent.consume(event)
 				}*/
 
-				// Add toolbar items
+				// Add sidebar items
 				const addVertex = function (icon, w, h, style) {
 					//const vertex = new mxCell(null, new mxGeometry(0, 0, w, h), style)
 					//vertex.setVertex(true)
-					const img = addToolbarItem(graph, toolbar, w, h, style, icon, xmlDocument)
+					const img = addSidebarItem(graph, sidebar, w, h, style, icon, xmlDocument)
 					img.enabled = true
 
 					graph.getSelectionModel().addListener(mxEvent.CHANGE, function () {
@@ -230,7 +250,7 @@
 			}
 		}*/
 
-		function addToolbarItem (graph, toolbar, w, h, style, image, xmlDocument) {
+		function addSidebarItem (graph, sidebar, w, h, style, image, xmlDocument) {
 			// Function that is executed when the image is dropped on the graph.
 			// The cell argument points to the cell under the mouse pointer if there is one.
 			const funct = function (graph, event, cell, x, y) {
@@ -250,24 +270,11 @@
 				const parent = graph.getDefaultParent()
 
 				var vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
-
-				/*const vertex = graph.getModel().cloneCell(prototype)
-				let title
-				if (prototype.style === 'shape=ellipse') {
-					title = 'var'
-				} else {
-					title = 'op'
-				}
-				vertex.value = title
-				vertex.geometry.x = x
-				vertex.geometry.y = y
-
-				graph.addCell(vertex)*/
 				graph.setSelectionCell(vertex)
 			}
 
 			// Creates the image which is used as the drag icon (preview)
-			const img = toolbar.addMode(null, image, function (event, cell) {
+			const img = sidebar.addMode(null, image, function (event, cell) {
 				const pt = this.graph.getPointForEvent(event)
 				funct(graph, event, cell, pt.x, pt.y, xmlDocument)
 			})
