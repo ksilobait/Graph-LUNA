@@ -16,6 +16,8 @@
 
 	<!-- Example code -->
 	<script type="text/javascript">
+		var incoming = {}
+		var outgoing = {}
 		// Program starts here. Creates a sample graph in the DOM node with the specified ID.
 		// This function is invoked from the onLoad event handler of the document (see below).
 		function main (container, toolbar, sidebarContainer) {
@@ -26,10 +28,6 @@
 			} else {
 				// Note that these XML nodes will be enclosing the mxCell nodes for the model cells in the output
 				const xmlDocument = mxUtils.createXmlDocument()
-
-				// Defines an icon for creating new connections in the connection handler.
-				// This will automatically disable the highlighting of the source vertex.
-				mxConnectionHandler.prototype.connectImage = new mxImage('images/connector.gif', 16, 16)
 
 				// creates new sidebar without event processing
 				const sidebar = new mxToolbar(sidebarContainer)
@@ -43,12 +41,40 @@
 					new mxDivResizer(sidebar)
 				}
 
+				// Graph event handler that creates new connections
+				mxConnectionHandlerInsertEdge = mxConnectionHandler.prototype.insertEdge
+				mxConnectionHandler.prototype.insertEdge = function (parent, id, value, source, target, style) {
+					// parent	mxCell that specifies the parent of the new edge.
+					// id	    Optional string that defines the Id of the new edge.
+					// value	JavaScript object to be used as the user object.
+					// 	source	mxCell that defines the source of the edge.
+					// 	target	mxCell that defines the target of the edge.
+					// 	style	Optional string that defines the cell style.
+					//TODO
+					//console.log('hi there ' + parent.getAttribute('name', 'parent') + ' '
+					//	+ source.getAttribute('name', 'source') + ' ' + target.getAttribute('name', 'target'))
+					// "parent opName varName
+
+					//console.log('and there ' + parent.getId() + ' '	+ source.getId() + ' ' + target.getId())
+					incoming[target.getId()][source.getId()] = true
+					outgoing[source.getId()][target.getId()] = true
+					//object[key] = true;
+					//if (object.hasOwnProperty(key)) { ... }
+					//delete object[key]
+
+					return mxConnectionHandlerInsertEdge.apply(this, arguments)
+				}
+
 				// Creates the graph inside the given container.
 				// The editor is used to create certain functionality for the graph, such as the rubberband selection,
 				// but most parts of the UI are custom in this example.
-				var editor = new mxEditor()
-				var graph = editor.graph
-				var model = graph.model
+				const editor = new mxEditor()
+				const graph = editor.graph
+				const model = graph.model
+				model.isCreateIds() // Tell the model to manage cell ids for us
+
+				const layout = new mxCompactTreeLayout(graph)
+				layout.execute(graph.getDefaultParent())
 
 				// Disables some global features
 				graph.setConnectable(true)
@@ -58,20 +84,6 @@
 
 				// Sets the graph container
 				editor.setGraphContainer(container)
-
-				/*
-				graph.multiplicities.push(new mxMultiplicity(
-					false, 'Variable', null, null, 0, 1, ['Operation'],
-					'Variable should be immutable', null))
-
-				graph.multiplicities.push(new mxMultiplicity(
-					false, 'Variable', null, null, 0, 0, ['Variable'],
-					'You cannot connect variables to variables', null))
-
-				graph.multiplicities.push(new mxMultiplicity(
-					false, 'Operation', null, null, 0, 0, ['Operation'],
-					'You cannot connect operations to operations', null))
-					*/
 
 				// Enables rubberband selection
 				const rubberband = new mxRubberband(graph)
@@ -105,7 +117,12 @@
 					cellLabelChanged.apply(this, arguments)
 				}
 
-				// Shows a "modal" window when double clicking a vertex. TODO
+				// Installs a popupmenu handler using local function (see below)
+				graph.popupMenuHandler.factoryMethod = function (menu, cell, event) {
+					return createPopupMenu(graph, menu, cell, event)
+				}
+
+				// Shows a "modal" window when double clicking a vertex.
 				/*graph.dblClick = function (event, cell) {
 					// Do not fire a DOUBLE_CLICK event here as mxEditor will
 					// consume the event and start the in-place editor.
@@ -131,18 +148,22 @@
 					mxEvent.consume(event)
 				}*/
 
-				// Add toolbar items TODO
-				// addToolbarButton(editor, toolbar, 'showSql', 'Show SQL', 'images/export1.png')
+				// Add toolbar items
+				addToolbarButton(editor, toolbar, 'generateCode', 'Generate code', 'images/export1.png')
 
-				// Defines export XML action
-				editor.addAction('export', function (editor, cell) {
-					var textarea = document.createElement('textarea')
-					textarea.style.width = '400px'
-					textarea.style.height = '400px'
-					var enc = new mxCodec(mxUtils.createXmlDocument())
-					var node = enc.encode(editor.graph.getModel())
-					textarea.value = mxUtils.getPrettyXml(node)
-					showModalWindow('XML', textarea, 410, 440)
+				editor.addAction('generateCode', function (editor, cell) {
+					const code = generateCode(graph)
+
+					if (code.length > 0) {
+						var textarea = document.createElement('textarea')
+						textarea.style.width = '400px'
+						textarea.style.height = '400px'
+
+						textarea.value = code
+						showModalWindow(graph, 'LuNA code', textarea, 410, 440)
+					} else {
+						mxUtils.alert('No operations on canvas')
+					}
 				})
 
 				// Add sidebar items
@@ -164,8 +185,7 @@
 			}
 		}
 
-		// double click - properties window TODO
-		/*function showModalWindow (graph, title, content, width, height) {
+		function showModalWindow (graph, title, content, width, height) {
 			const background = document.createElement('div')
 			background.style.position = 'absolute'
 			background.style.left = '0px'
@@ -195,7 +215,8 @@
 			graph.setEnabled(false)
 			graph.tooltipHandler.hide()
 			wnd.setVisible(true)
-		}*/
+			return wnd
+		}
 
 		// Creates the text field for the given property (in modal window)
 		/*function createTextField (graph, form, cell, attribute) {
@@ -234,6 +255,30 @@
 			}
 		}*/
 
+		function addToolbarButton (editor, toolbar, action, label, image, isTransparent) {
+			var button = document.createElement('button')
+			button.style.fontSize = '10'
+			if (image != null) {
+				var img = document.createElement('img')
+				img.setAttribute('src', image)
+				img.style.width = '16px'
+				img.style.height = '16px'
+				img.style.verticalAlign = 'middle'
+				img.style.marginRight = '2px'
+				button.appendChild(img)
+			}
+			if (isTransparent) {
+				button.style.background = 'transparent'
+				button.style.color = '#FFFFFF'
+				button.style.border = 'none'
+			}
+			mxEvent.addListener(button, 'click', function (evt) {
+				editor.execute(action)
+			})
+			mxUtils.write(button, label)
+			toolbar.appendChild(button)
+		}
+
 		function addSidebarItem (graph, sidebar, w, h, style, image, xmlDocument) {
 			// Function that is executed when the image is dropped on the graph.
 			// The cell argument points to the cell under the mouse pointer if there is one.
@@ -244,16 +289,28 @@
 				if (style === 'shape=ellipse') {
 					vrtx = xmlDocument.createElement('Variable')
 					vrtx.setAttribute('name', 'var')
+					vrtx.setAttribute('type', 'var')
 				} else {
 					vrtx = xmlDocument.createElement('Operation')
 					vrtx.setAttribute('name', 'op')
+					vrtx.setAttribute('type', 'op')
 				}
 
 				// Gets the default parent for inserting new cells.
 				// This is normally the first child of the root (ie. layer 0).
 				const parent = graph.getDefaultParent()
+				const model = graph.getModel()
 
-				var vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
+				model.beginUpdate()
+				let vertex
+				try {
+					vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
+					incoming[vertex.getId()] = {}
+					outgoing[vertex.getId()] = {}
+				} finally {
+					model.endUpdate()
+				}
+
 				graph.setSelectionCell(vertex)
 			}
 
@@ -263,7 +320,7 @@
 				funct(graph, event, cell, pt.x, pt.y, xmlDocument)
 			})
 
-			// Disables dragging if element is disabled. - TODO, not working
+			// Disables dragging if element is disabled. - TODO
 			// This is a workaround for wrong event order in IE.
 			// Following is a dummy listener that is invoked as the last listener in IE.
 			mxEvent.addListener(img, 'mousedown', function (event) {
@@ -280,6 +337,67 @@
 
 			return img
 		}
+
+		function generateCode (graph) {
+			const code = []
+			const df = ['df ']
+			const parent = graph.getDefaultParent()
+
+			for (let i = 0; i < graph.model.getChildCount(parent); i++) {
+				const child = graph.model.getChildAt(parent, i)
+				if (!graph.model.isEdge(child)) {
+					if (child.getAttribute('type', '') === 'var') {
+						df.push(child.getAttribute('name', '') + ', ')
+					} else if (child.getAttribute('type', '') === 'op') {
+						code.push(child.getAttribute('name', '') + '(#in ')
+						const map1 = incoming[child.getId()]
+						for (const key in map1) {
+							if (map1.hasOwnProperty(key)) {
+								const value = map1[key]
+								if (value) {
+									const tempCell = graph.model.getCell(key)
+									code.push(tempCell.getAttribute('name', '') + ', ')
+								}
+							}
+						}
+						code.push('#out ')
+						const map2 = outgoing[child.getId()]
+						for (const key in map2) {
+							if (map2.hasOwnProperty(key)) {
+								const value = map2[key]
+								if (value) {
+									const tempCell = graph.model.getCell(key)
+									code.push(tempCell.getAttribute('name', '') + ', ')
+								}
+							}
+						}
+						code.push(');\n')
+					}
+				} else {
+					//console.log('edge')
+				}
+			}
+			df.push(';\n')
+			return df.join('') + code.join('')
+		}
+
+		// Function to create the entries in the popupmenu
+		function createPopupMenu (graph, menu, cell, event) {
+			if (cell != null) {
+				menu.addItem('Cell Item', 'editors/images/image.gif', function () {
+					mxUtils.alert('MenuItem1')
+				})
+			} else {
+				menu.addItem('No-Cell Item', 'editors/images/image.gif', function () {
+					mxUtils.alert('MenuItem2')
+				})
+			}
+			menu.addSeparator()
+			menu.addItem('MenuItem3', '../src/images/warning.gif', function () {
+				mxUtils.alert('MenuItem3: ' + graph.getSelectionCount() + ' selected')
+			})
+		}
+
 	</script>
 
 </head>
