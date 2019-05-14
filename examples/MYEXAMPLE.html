@@ -14,10 +14,11 @@
 	<!-- Loads and initializes the library -->
 	<script type="text/javascript" src="../src/js/mxClient.js"></script>
 
-	<!-- Example code -->
 	<script type="text/javascript">
-		var incoming = {}
-		var outgoing = {}
+		const incoming = {}
+		const outgoing = {}
+		const all_imports1 = []
+		const all_imports2 = []
 		// Program starts here. Creates a sample graph in the DOM node with the specified ID.
 		// This function is invoked from the onLoad event handler of the document (see below).
 		function main (container, toolbar, sidebarContainer) {
@@ -47,21 +48,13 @@
 					// parent	mxCell that specifies the parent of the new edge.
 					// id	    Optional string that defines the Id of the new edge.
 					// value	JavaScript object to be used as the user object.
-					// 	source	mxCell that defines the source of the edge.
-					// 	target	mxCell that defines the target of the edge.
-					// 	style	Optional string that defines the cell style.
-					//TODO
-					//console.log('hi there ' + parent.getAttribute('name', 'parent') + ' '
-					//	+ source.getAttribute('name', 'source') + ' ' + target.getAttribute('name', 'target'))
-					// "parent opName varName
+					// source	mxCell that defines the source of the edge.
+					// target	mxCell that defines the target of the edge.
+					// style	Optional string that defines the cell style.
 
-					//console.log('and there ' + parent.getId() + ' '	+ source.getId() + ' ' + target.getId())
 					incoming[target.getId()][source.getId()] = true
+					//console.log('and there ' + parent.getId() + ' '	+ source.getId() + ' ' + target.getId())
 					outgoing[source.getId()][target.getId()] = true
-					//object[key] = true;
-					//if (object.hasOwnProperty(key)) { ... }
-					//delete object[key]
-
 					return mxConnectionHandlerInsertEdge.apply(this, arguments)
 				}
 
@@ -119,43 +112,23 @@
 
 				// Installs a popupmenu handler using local function (see below)
 				graph.popupMenuHandler.factoryMethod = function (menu, cell, event) {
-					return createPopupMenu(graph, menu, cell, event)
+					return createPopupMenu(editor, graph, menu, cell, event)
 				}
 
-				// Shows a "modal" window when double clicking a vertex.
-				/*graph.dblClick = function (event, cell) {
-					// Do not fire a DOUBLE_CLICK event here as mxEditor will
-					// consume the event and start the in-place editor.
-					if (this.isEnabled() &&	!mxEvent.isConsumed(event) &&
-						cell != null &&	this.isCellEditable(cell)) {
-						if (this.model.isEdge(cell)) {
-							this.startEditingAtCell(cell)
-						} else {
-							var content = document.createElement('div')
-
-							// Creates the form from the attributes of the user object
-							var form = new mxForm()
-							var attrs = cell.value.attributes
-							for (var i = 0; i < attrs.length; i++) {
-								createTextField(graph, form, cell, attrs[i])
-							}
-							content.appendChild(form.getTable())
-							showModalWindow(this, 'Properties', content, 400, 300)
-						}
+				editor.addAction('properties', function (editor, cell) {
+					if (cell == null) {
+						cell = graph.getSelectionCell()
 					}
 
-					// Disables any default behaviour for the double click
-					mxEvent.consume(event)
-				}*/
+					showProperties(graph, cell)
+				})
 
 				// Add toolbar items
-				addToolbarButton(editor, toolbar, 'generateCode', 'Generate code', 'images/export1.png')
-
 				editor.addAction('generateCode', function (editor, cell) {
 					const code = generateCode(graph)
 
 					if (code.length > 0) {
-						var textarea = document.createElement('textarea')
+						const textarea = document.createElement('textarea')
 						textarea.style.width = '400px'
 						textarea.style.height = '400px'
 
@@ -165,6 +138,63 @@
 						mxUtils.alert('No operations on canvas')
 					}
 				})
+				addToolbarButton(editor, toolbar, 'generateCode', 'Generate code', 'images/export1.png')
+
+				editor.addAction('import', function (editor, cell) {
+					const xml = mxUtils.prompt('Enter name for new XML code', '')
+					if (xml != null) {
+						const doc = mxUtils.parseXml(xml)
+						const codec = new mxCodec(doc)
+						codec.decode(doc.documentElement, graph.getModel())
+					}
+				})
+				addToolbarButton(editor, toolbar, 'import', 'Import XML', 'images/export1.png')
+
+				editor.addAction('export', function (editor, cell) {
+					const textarea = document.createElement('textarea')
+					textarea.style.width = '400px'
+					textarea.style.height = '400px'
+
+					const encoder = new mxCodec(mxUtils.createXmlDocument())
+					const node = encoder.encode(editor.graph.getModel())
+					textarea.value = mxUtils.getPrettyXml(node)
+					showModalWindow(graph, 'XML', textarea, 410, 440)
+				})
+				addToolbarButton(editor, toolbar, 'export', 'Export XML', 'images/export1.png')
+
+				editor.addAction('imports', function (editor, cell) {
+					const form = new mxForm('imports')
+
+					const importedName = form.addText('Imported name', '')
+					const importedAsWhat = form.addText('Import as what', '')
+
+					const comboField = form.addCombo('imports', false, all_imports1.length)
+					for (let i = 0; i < all_imports1.length; i++) {
+						const var1 = all_imports1[i]
+						const var2 = all_imports2[i]
+						form.addOption(comboField, 'import ' + var1 + ' as ' + var2, null, false)
+					}
+
+					let wnd = null
+
+					const addFunction = function () {
+						const impname = importedName.value
+						const impaswh = importedAsWhat.value
+						if (impname !== '' && impaswh !== '') {
+							all_imports1.push(importedName.value)
+							all_imports2.push(importedAsWhat.value)
+						}
+						wnd.destroy()
+					}
+
+					const closeFunction = function () {
+						wnd.destroy()
+					}
+
+					form.addButtons(addFunction, closeFunction)
+					wnd = showModalWindow(graph, 'name', form.table, 240, 240)
+				})
+				addToolbarButton(editor, toolbar, 'imports', 'Add LuNA Import', 'images/export1.png')
 
 				// Add sidebar items
 				const addVertex = function (icon, w, h, style) {
@@ -182,6 +212,7 @@
 
 				addVertex('editors/images/rectangle.gif', 100, 40, '')
 				addVertex('editors/images/rounded.gif', 40, 40, 'shape=ellipse')
+				addVertex('editors/images/rhombus.gif', 40, 40, 'shape=rhombus')
 			}
 		}
 
@@ -218,48 +249,11 @@
 			return wnd
 		}
 
-		// Creates the text field for the given property (in modal window)
-		/*function createTextField (graph, form, cell, attribute) {
-			const input = form.addText(attribute.nodeName + ':', attribute.nodeValue)
-
-			const applyHandler = function () {
-				const newValue = input.value || ''
-				const oldValue = cell.getAttribute(attribute.nodeName, '')
-
-				if (newValue !== oldValue) {
-					graph.getModel().beginUpdate()
-					try {
-						const edit = new mxCellAttributeChange(cell, attribute.nodeName, newValue)
-						graph.getModel().execute(edit)
-					} finally {
-						graph.getModel().endUpdate()
-					}
-				}
-			}
-
-			mxEvent.addListener(input, 'keypress', function (event) {
-				// Needs to take shift into account for text areas
-				if (event.key === 'Escape' && !mxEvent.isShiftDown(event)) {
-					input.blur()
-				}
-			})
-
-			if (mxClient.IS_IE) {
-				mxEvent.addListener(input, 'focusout', applyHandler)
-			} else {
-				// Note: Known problem is the blurring of fields in Firefox by changing the selection,
-				// in which case no event is fired in FF and the change is lost.
-				// As a workaround you should use a local variable that stores the focused field and
-				// invoke blur explicitly where we do the graph.focus above.
-				mxEvent.addListener(input, 'blur', applyHandler)
-			}
-		}*/
-
 		function addToolbarButton (editor, toolbar, action, label, image, isTransparent) {
-			var button = document.createElement('button')
+			const button = document.createElement('button')
 			button.style.fontSize = '10'
 			if (image != null) {
-				var img = document.createElement('img')
+				const img = document.createElement('img')
 				img.setAttribute('src', image)
 				img.style.width = '16px'
 				img.style.height = '16px'
@@ -290,6 +284,10 @@
 					vrtx = xmlDocument.createElement('Variable')
 					vrtx.setAttribute('name', 'var')
 					vrtx.setAttribute('type', 'var')
+				} else if (style === 'shape=rhombus') {
+					vrtx = xmlDocument.createElement('Condition')
+					vrtx.setAttribute('name', 'if')
+					vrtx.setAttribute('type', 'con')
 				} else {
 					vrtx = xmlDocument.createElement('Operation')
 					vrtx.setAttribute('name', 'op')
@@ -307,6 +305,28 @@
 					vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
 					incoming[vertex.getId()] = {}
 					outgoing[vertex.getId()] = {}
+
+					if (style === 'shape=rhombus') { //condition
+						let vrtxPlus = xmlDocument.createElement('SubCondition')
+						vrtxPlus.setAttribute('name', '+')
+						vrtxPlus.setAttribute('type', 'subconpos')
+						const vertexPlus = graph.insertVertex(parent, null, vrtxPlus, x + 80, y - 20, w / 2, h / 2, 'fillColor=black;fontColor=white')
+						graph.insertEdge(parent, null, 'todo', vertex, vertexPlus)
+						incoming[vertexPlus.getId()] = {}
+						incoming[vertexPlus.getId()][vertex.getId()] = true
+						outgoing[vertexPlus.getId()] = {}
+						outgoing[vertex.getId()][vertexPlus.getId()] = true
+
+						let vrtxMinus = xmlDocument.createElement('SubCondition')
+						vrtxMinus.setAttribute('name', '-')
+						vrtxMinus.setAttribute('type', 'subconneg')
+						const vertexMinus = graph.insertVertex(parent, null, vrtxMinus, x + 80, y + 40, w / 2, h / 2, 'fillColor=black;fontColor=white')
+						graph.insertEdge(parent, null, 'todo', vertex, vertexMinus)
+						incoming[vertexMinus.getId()] = {}
+						incoming[vertexMinus.getId()][vertex.getId()] = true
+						outgoing[vertexMinus.getId()] = {}
+						outgoing[vertex.getId()][vertexMinus.getId()] = true
+					}
 				} finally {
 					model.endUpdate()
 				}
@@ -342,64 +362,149 @@
 			const code = []
 			const df = ['df ']
 			const parent = graph.getDefaultParent()
+			const imports = []
+
+			for (let i = 0; i < all_imports1.length; i++) {
+				const var1 = all_imports1[i]
+				const var2 = all_imports2[i]
+				imports.push('import ' + var1 + ' as ' + var2 + ';\n')
+			}
 
 			for (let i = 0; i < graph.model.getChildCount(parent); i++) {
 				const child = graph.model.getChildAt(parent, i)
 				if (!graph.model.isEdge(child)) {
 					if (child.getAttribute('type', '') === 'var') {
-						df.push(child.getAttribute('name', '') + ', ')
+						df.push(child.getAttribute('name', ''))
+						df.push(', ')
 					} else if (child.getAttribute('type', '') === 'op') {
-						code.push(child.getAttribute('name', '') + '(#in ')
-						const map1 = incoming[child.getId()]
-						for (const key in map1) {
-							if (map1.hasOwnProperty(key)) {
-								const value = map1[key]
-								if (value) {
-									const tempCell = graph.model.getCell(key)
-									code.push(tempCell.getAttribute('name', '') + ', ')
+						let ifsCode = []
+						let nextIfsIds = []
+						nextIfsIds.push(child.getId())
+						while (nextIfsIds.length > 0) {
+							const nextElement = nextIfsIds.pop()
+							Object.keys(incoming[nextElement]).forEach(function (key, index) {
+								const thatcell = graph.model.getCell(key)
+								if (thatcell.getAttribute('type', '') === 'subconpos') {
+									Object.keys(incoming[thatcell.getId()]).forEach(function (ifCellId, index2) {
+										nextIfsIds.push(ifCellId)
+										ifsCode.push(graph.model.getCell(ifCellId).getAttribute('name', ''))
+									})
+								} else if (thatcell.getAttribute('type', '') === 'subconneg') {
+									Object.keys(incoming[thatcell.getId()]).forEach(function (ifCellId, index2) {
+										nextIfsIds.push(ifCellId)
+										ifsCode.push('!' + graph.model.getCell(ifCellId).getAttribute('name', ''))
+									})
 								}
-							}
+							})
 						}
-						code.push('#out ')
-						const map2 = outgoing[child.getId()]
-						for (const key in map2) {
-							if (map2.hasOwnProperty(key)) {
-								const value = map2[key]
-								if (value) {
-									const tempCell = graph.model.getCell(key)
-									code.push(tempCell.getAttribute('name', '') + ', ')
-								}
+						if (ifsCode.length > 0) {
+							code.push('if (' + ifsCode.join(' && ') + ') { \n')
+						}
+
+						let unpushFirst = false
+						let unpushSecond = false
+						const importedAsWhat = child.getAttribute('import', '!IMPORT')
+						code.push(importedAsWhat + ' ')
+						code.push(child.getAttribute('name', '') + '(#in ')
+						Object.keys(incoming[child.getId()]).forEach(function (key, index) {
+							const value = incoming[child.getId()][key]
+							if (value && graph.model.getCell(key).getAttribute('type', '') === 'var') {
+								const tempCell = graph.model.getCell(key)
+								code.push(tempCell.getAttribute('name', ''))
+								code.push(', ')
+								unpushFirst = true
 							}
+						})
+
+						code.push('#out ')
+						Object.keys(outgoing[child.getId()]).forEach(function (key, index) {
+							const value = outgoing[child.getId()][key]
+							if (value && graph.model.getCell(key).getAttribute('type', '') === 'var') {
+								const tempCell = graph.model.getCell(key)
+								code.push(tempCell.getAttribute('name', ''))
+								code.push(', ')
+								unpushSecond = true
+							}
+
+						})
+
+						if (unpushSecond) {
+							code.pop()
+						} else if (unpushFirst) {
+							code.pop()
+							code.pop()
+							code.push(' #out')
+						} else {
+							code.pop()
+							code.push('#out')
 						}
 						code.push(');\n')
+						if (ifsCode.length > 0) {
+							code.push('} \n')
+						}
 					}
 				} else {
 					//console.log('edge')
 				}
 			}
-			df.push(';\n')
-			return df.join('') + code.join('')
+			if (df.length !== 1) {
+				df.pop()
+			}
+			if (df.length === 1) {
+				df.pop()
+			} else {
+				df.push(';\n')
+			}
+			return imports.join('') + 'sub main() {\n' + df.join('') + code.join('') + '}\n'
 		}
 
 		// Function to create the entries in the popupmenu
-		function createPopupMenu (graph, menu, cell, event) {
+		function createPopupMenu (editor, graph, menu, cell, event) {
 			if (cell != null) {
-				menu.addItem('Cell Item', 'editors/images/image.gif', function () {
-					mxUtils.alert('MenuItem1')
-				})
-			} else {
-				menu.addItem('No-Cell Item', 'editors/images/image.gif', function () {
-					mxUtils.alert('MenuItem2')
+				menu.addItem('Properties', 'editors/images/image.gif', function () {
+					editor.execute('properties', cell)
 				})
 			}
-			menu.addSeparator()
-			menu.addItem('MenuItem3', '../src/images/warning.gif', function () {
-				mxUtils.alert('MenuItem3: ' + graph.getSelectionCount() + ' selected')
-			})
 		}
 
-	</script>
+		function showProperties (graph, cell) {
+			//TODO
+			// Creates a form for the user object inside the cell
+			const form = new mxForm('properties')
 
+			const importField = form.addText('Import', cell.getValue().getAttribute('import'))
+
+			/*
+			var p = form.addCheckbox('', '')
+			var d = form.addText('', '')
+			const c = form.addCombo('imports', false, all_imports1.length + 1)
+			form.addOption(comboField, "none", null, true)
+			for (let i = 0; i < all_imports1.length; i++) {
+				const var1 = all_imports1[i]
+				const var2 = all_imports2[i]
+				form.addOption(comboField, "import " + var1 + " as " + var2, null, false)
+			}*/
+
+			let wnd = null
+			// Defines the function to be executed when the
+			// OK button is pressed in the dialog
+			const okFunction = function () {
+				var clone = cell.value
+				clone.setAttribute('import', importField.value)
+				graph.model.setValue(cell, clone)
+				wnd.destroy()
+			}
+
+			// Defines the function to be executed when the
+			// Cancel button is pressed in the dialog
+			const cancelFunction = function () {
+				wnd.destroy()
+			}
+			form.addButtons(okFunction, cancelFunction)
+			const name = cell.getValue().getAttribute('name')
+			wnd = showModalWindow(graph, name, form.table, 240, 240)
+		}
+	</script>
 </head>
 
 <!-- Calls the main function after the page has loaded. Container is dynamically created. -->
