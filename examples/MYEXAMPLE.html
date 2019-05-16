@@ -15,10 +15,12 @@
 	<script type="text/javascript" src="../src/js/mxClient.js"></script>
 
 	<script type="text/javascript">
-		const incoming = {}
-		const outgoing = {}
+		let incoming = {}
+		let outgoing = {}
 		const all_imports1 = []
 		const all_imports2 = []
+		const extended_imports2 = []
+		const all_imports3 = []
 		// Program starts here. Creates a sample graph in the DOM node with the specified ID.
 		// This function is invoked from the onLoad event handler of the document (see below).
 		function main (container, toolbar, sidebarContainer) {
@@ -124,8 +126,8 @@
 				})
 
 				// Add toolbar items
-				editor.addAction('generateCode', function (editor, cell) {
-					const code = generateCode(graph)
+				editor.addAction('generateLunaCode', function (editor, cell) {
+					const code = generateLunaCode(graph)
 
 					if (code.length > 0) {
 						const textarea = document.createElement('textarea')
@@ -138,17 +140,56 @@
 						mxUtils.alert('No operations on canvas')
 					}
 				})
-				addToolbarButton(editor, toolbar, 'generateCode', 'Generate code', 'images/export1.png')
+				addToolbarButton(editor, toolbar, 'generateLunaCode', 'Generate LuNA code', 'images/export1.png')
 
-				editor.addAction('import', function (editor, cell) {
+				editor.addAction('generateCTemplate', function (editor, cell) {
+					const code = generateCCode()
+
+					if (code.length > 0) {
+						const textarea = document.createElement('textarea')
+						textarea.style.width = '400px'
+						textarea.style.height = '400px'
+
+						textarea.value = code
+						showModalWindow(graph, 'C++ template', textarea, 410, 440)
+					} else {
+						mxUtils.alert('No operations on canvas')
+					}
+				})
+				addToolbarButton(editor, toolbar, 'generateCTemplate', 'Generate C++ template', 'images/export1.png')
+
+
+				editor.addAction('importXML', function (editor, cell) {
 					const xml = mxUtils.prompt('Enter name for new XML code', '')
 					if (xml != null) {
 						const doc = mxUtils.parseXml(xml)
 						const codec = new mxCodec(doc)
 						codec.decode(doc.documentElement, graph.getModel())
 					}
+
+					incoming = {}
+					outgoing = {}
+					const parent = graph.getDefaultParent()
+					for (let i = 0; i < graph.model.getChildCount(parent); i++) {
+						const child = graph.model.getChildAt(parent, i)
+						if (graph.model.isEdge(child)) {
+							continue
+						}
+						incoming[child.getId()] = {}
+						outgoing[child.getId()] = {}
+					}
+					for (let i = 0; i < graph.model.getChildCount(parent); i++) {
+						const child = graph.model.getChildAt(parent, i)
+						if (!graph.model.isEdge(child)) {
+							continue
+						}
+						const sourceID = model.getTerminal(child, true).getId()
+						const targetID = model.getTerminal(child, false).getId()
+						incoming[targetID][sourceID] = true
+						outgoing[sourceID][targetID] = true
+					}
 				})
-				addToolbarButton(editor, toolbar, 'import', 'Import XML', 'images/export1.png')
+				addToolbarButton(editor, toolbar, 'importXML', 'Import XML', 'images/export1.png')
 
 				editor.addAction('export', function (editor, cell) {
 					const textarea = document.createElement('textarea')
@@ -164,15 +205,37 @@
 
 				editor.addAction('imports', function (editor, cell) {
 					const form = new mxForm('imports')
+					const vars = []
 
-					const importedName = form.addText('Imported name', '')
-					const importedAsWhat = form.addText('Import as what', '')
+					const importedName = form.addText('c++ method name', '')
+					const importedAsWhat = form.addText('code name', '')
+					form.body.appendChild(mxUtils.button('int', function()
+					{
+						vars.push('int')
+					}))
+					form.body.appendChild(mxUtils.button('real', function()
+					{
+						vars.push('real')
+					}))
+					form.body.appendChild(mxUtils.button('string', function()
+					{
+						vars.push('string')
+					}))
+					form.body.appendChild(mxUtils.button('value', function()
+					{
+						vars.push('value')
+					}))
+					form.body.appendChild(mxUtils.button('name', function()
+					{
+						vars.push('name')
+					}))
 
 					const comboField = form.addCombo('imports', false, all_imports1.length)
 					for (let i = 0; i < all_imports1.length; i++) {
 						const var1 = all_imports1[i]
 						const var2 = all_imports2[i]
-						form.addOption(comboField, 'import ' + var1 + ' as ' + var2, null, false)
+						const var3 = all_imports3[i]
+						form.addOption(comboField, 'import ' + var1 + var2 + ' as ' + var3, null, false)
 					}
 
 					let wnd = null
@@ -182,7 +245,9 @@
 						const impaswh = importedAsWhat.value
 						if (impname !== '' && impaswh !== '') {
 							all_imports1.push(importedName.value)
-							all_imports2.push(importedAsWhat.value)
+							all_imports2.push('(' + vars.join(', ') + ')')
+							extended_imports2.push(generateExtendedImport(importedName.value, vars))
+							all_imports3.push(importedAsWhat.value)
 						}
 						wnd.destroy()
 					}
@@ -311,7 +376,7 @@
 						vrtxPlus.setAttribute('name', '+')
 						vrtxPlus.setAttribute('type', 'subconpos')
 						const vertexPlus = graph.insertVertex(parent, null, vrtxPlus, x + 80, y - 20, w / 2, h / 2, 'fillColor=black;fontColor=white')
-						graph.insertEdge(parent, null, 'todo', vertex, vertexPlus)
+						graph.insertEdge(parent, null, null, vertex, vertexPlus)
 						incoming[vertexPlus.getId()] = {}
 						incoming[vertexPlus.getId()][vertex.getId()] = true
 						outgoing[vertexPlus.getId()] = {}
@@ -321,7 +386,7 @@
 						vrtxMinus.setAttribute('name', '-')
 						vrtxMinus.setAttribute('type', 'subconneg')
 						const vertexMinus = graph.insertVertex(parent, null, vrtxMinus, x + 80, y + 40, w / 2, h / 2, 'fillColor=black;fontColor=white')
-						graph.insertEdge(parent, null, 'todo', vertex, vertexMinus)
+						graph.insertEdge(parent, null, null, vertex, vertexMinus)
 						incoming[vertexMinus.getId()] = {}
 						incoming[vertexMinus.getId()][vertex.getId()] = true
 						outgoing[vertexMinus.getId()] = {}
@@ -340,7 +405,7 @@
 				funct(graph, event, cell, pt.x, pt.y, xmlDocument)
 			})
 
-			// Disables dragging if element is disabled. - TODO
+			// Disables dragging if element is disabled.
 			// This is a workaround for wrong event order in IE.
 			// Following is a dummy listener that is invoked as the last listener in IE.
 			mxEvent.addListener(img, 'mousedown', function (event) {
@@ -358,7 +423,7 @@
 			return img
 		}
 
-		function generateCode (graph) {
+		function generateLunaCode (graph) {
 			const code = []
 			const df = ['df ']
 			const parent = graph.getDefaultParent()
@@ -366,7 +431,7 @@
 
 			for (let i = 0; i < all_imports1.length; i++) {
 				const var1 = all_imports1[i]
-				const var2 = all_imports2[i]
+				const var2 = all_imports3[i]
 				imports.push('import ' + var1 + ' as ' + var2 + ';\n')
 			}
 
@@ -401,18 +466,19 @@
 							code.push('if (' + ifsCode.join(' && ') + ') { \n')
 						}
 
-						let unpushFirst = false
 						let unpushSecond = false
-						const importedAsWhat = child.getAttribute('import', '!IMPORT')
-						code.push(importedAsWhat + ' ')
-						code.push(child.getAttribute('name', '') + '(#in ')
+						const additionalName = child.getAttribute('addName', '')
+						if (additionalName !== '') {
+							code.push('cf ' + additionalName + ': ')
+						}
+						code.push(child.getAttribute('name', '') + '(')
+						code.push('#in ')
 						Object.keys(incoming[child.getId()]).forEach(function (key, index) {
 							const value = incoming[child.getId()][key]
 							if (value && graph.model.getCell(key).getAttribute('type', '') === 'var') {
 								const tempCell = graph.model.getCell(key)
 								code.push(tempCell.getAttribute('name', ''))
 								code.push(', ')
-								unpushFirst = true
 							}
 						})
 
@@ -430,13 +496,9 @@
 
 						if (unpushSecond) {
 							code.pop()
-						} else if (unpushFirst) {
-							code.pop()
-							code.pop()
-							code.push(' #out')
 						} else {
 							code.pop()
-							code.push('#out')
+							code.pop()
 						}
 						code.push(');\n')
 						if (ifsCode.length > 0) {
@@ -458,6 +520,59 @@
 			return imports.join('') + 'sub main() {\n' + df.join('') + code.join('') + '}\n'
 		}
 
+		function generateCCode () {
+			return '#include "ucenv/ucenv.h"\n' + extended_imports2.join('\n\n')
+		}
+
+		function generateExtendedImport (importName, vars) {
+			const code = []
+			code.push('extern "C"\n')
+			code.push('void ' + importName + '(')
+			let intCounter = 0
+			let doubleCounter = 0
+			let stringCounter = 0
+			let valueCounter = 0
+			let nameCounter = 0
+			for (let i = 0; i < vars.length; i++) {
+				switch (vars[i]) {
+					case 'int':
+						code.push('int i' + intCounter)
+						intCounter++
+						code.push(', ')
+						break
+					case 'double':
+						code.push('double d' + doubleCounter)
+						doubleCounter++
+						code.push(', ')
+						break
+					case 'string':
+						code.push('char* s' + stringCounter)
+						stringCounter++
+						code.push(', ')
+						break
+					case 'value':
+						code.push('const InputDF& dfi' + valueCounter)
+						valueCounter++
+						code.push(', ')
+						break
+					case 'name':
+						code.push('OutputDF& dfo' + nameCounter)
+						nameCounter++
+						code.push(', ')
+						break
+				}
+			}
+			if (code.length !== 2) {
+				code.pop()
+			}
+			code.push(') { \n')
+			for (let i = 0; i < nameCounter; i++) {
+				code.push('dfo' + i + '.setValue<int>(0);\n')
+			}
+			code.push('} \n')
+			return code.join('')
+		}
+
 		// Function to create the entries in the popupmenu
 		function createPopupMenu (editor, graph, menu, cell, event) {
 			if (cell != null) {
@@ -468,12 +583,13 @@
 		}
 
 		function showProperties (graph, cell) {
-			//TODO
 			// Creates a form for the user object inside the cell
 			const form = new mxForm('properties')
 
-			const importField = form.addText('Import', cell.getValue().getAttribute('import'))
-
+			let importField
+			if (cell.getAttribute('type', '') === 'op') {
+				importField = form.addText('Additional name', cell.getValue().getAttribute('addName'))
+			}
 			/*
 			var p = form.addCheckbox('', '')
 			var d = form.addText('', '')
@@ -481,7 +597,7 @@
 			form.addOption(comboField, "none", null, true)
 			for (let i = 0; i < all_imports1.length; i++) {
 				const var1 = all_imports1[i]
-				const var2 = all_imports2[i]
+				const var2 = all_imports3[i]
 				form.addOption(comboField, "import " + var1 + " as " + var2, null, false)
 			}*/
 
@@ -489,9 +605,11 @@
 			// Defines the function to be executed when the
 			// OK button is pressed in the dialog
 			const okFunction = function () {
-				var clone = cell.value
-				clone.setAttribute('import', importField.value)
-				graph.model.setValue(cell, clone)
+				if (importField !== undefined) {
+					const clone = cell.value
+					clone.setAttribute('addName', importField.value)
+					graph.model.setValue(cell, clone)
+				}
 				wnd.destroy()
 			}
 
@@ -501,7 +619,7 @@
 				wnd.destroy()
 			}
 			form.addButtons(okFunction, cancelFunction)
-			const name = cell.getValue().getAttribute('name')
+			const name = cell.getValue().getAttribute('addName')
 			wnd = showModalWindow(graph, name, form.table, 240, 240)
 		}
 	</script>
