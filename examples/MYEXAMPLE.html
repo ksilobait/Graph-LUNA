@@ -459,7 +459,7 @@
 			return outgoing
 		}
 
-		function processOperation (graph, operation) {
+		function processOperation (graph, operation, inLoop) {
 			const code = []
 			const conditionsCode = []
 
@@ -495,7 +495,9 @@
 					const source = graph.model.getTerminal(operation.edges[i], true)
 					const target = graph.model.getTerminal(operation.edges[i], false)
 					if (source === operation && target.value.nodeName === 'Variable') {
-						visitedVariables.add(target.getId())
+						if (inLoop) {
+							visitedVariables.add(target.getId())
+						}
 						outgoing.push({
 							'name': target.getAttribute('name', ''),
 							'order': operation.edges[i].getValue()
@@ -564,7 +566,7 @@
 				} else if (current.value.nodeName === 'Operation') {
 					const outgoing = getOutgoing(graph, current)
 					stack = stack.concat(outgoing)
-					code.push(processOperation(graph, current))
+					code.push(processOperation(graph, current, true))
 					visitedOperations.add(current.getId())
 				} else if (current.value.nodeName === 'LoopIn') {
 					throw 'not supported'
@@ -618,7 +620,7 @@
 					df.push(', ')
 					visitedVariables.add(child.getId())
 				} else if (child.value.nodeName === 'Operation' && !(visitedOperations.has(child.getId()))) {
-					code.push(processOperation(graph, child))
+					code.push(processOperation(graph, child, false))
 					visitedOperations.add(child.getId())
 				}
 			}
