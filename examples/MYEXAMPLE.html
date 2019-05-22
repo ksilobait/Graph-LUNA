@@ -15,12 +15,13 @@
 	<script type="text/javascript" src="../src/js/mxClient.js"></script>
 
 	<script type="text/javascript">
-		let incoming = {}
-		let outgoing = {}
 		const all_imports1 = []
 		const all_imports2 = []
 		const extended_imports2 = []
 		const all_imports3 = []
+		let visitedOperations
+		let visitedVariables
+		let visitedLoops
 		// Program starts here. Creates a sample graph in the DOM node with the specified ID.
 		// This function is invoked from the onLoad event handler of the document (see below).
 		function main (container, toolbar, sidebarContainer) {
@@ -45,20 +46,10 @@
 				}
 
 				// Graph event handler that creates new connections
-				mxConnectionHandlerInsertEdge = mxConnectionHandler.prototype.insertEdge
+				/*mxConnectionHandlerInsertEdge = mxConnectionHandler.prototype.insertEdge
 				mxConnectionHandler.prototype.insertEdge = function (parent, id, value, source, target, style) {
-					// parent	mxCell that specifies the parent of the new edge.
-					// id	    Optional string that defines the Id of the new edge.
-					// value	JavaScript object to be used as the user object.
-					// source	mxCell that defines the source of the edge.
-					// target	mxCell that defines the target of the edge.
-					// style	Optional string that defines the cell style.
-
-					incoming[target.getId()][source.getId()] = true
-					//console.log('and there ' + parent.getId() + ' '	+ source.getId() + ' ' + target.getId())
-					outgoing[source.getId()][target.getId()] = true
 					return mxConnectionHandlerInsertEdge.apply(this, arguments)
-				}
+				}*/
 
 				// Creates the graph inside the given container.
 				// The editor is used to create certain functionality for the graph, such as the rubberband selection,
@@ -94,16 +85,27 @@
 				// Overrides method to provide a cell label in the display
 				graph.convertValueToString = function (cell) {
 					if (mxUtils.isNode(cell.value)) {
-						//if (cell.value.nodeName === 'Variable')
+						if (cell.value.nodeName === 'LoopIn') {
+							return 'for ' + cell.getAttribute('iterationIndex', '') + ' = ' +
+								cell.getAttribute('startBound', '') + '..' + cell.getAttribute('endBound', '')
+						}
 						return cell.getAttribute('name', '')
 					}
+
+					if (graph.model.isEdge(cell)) {
+						return cell.getValue()
+					}
+				}
+
+				// Returns the editing value for the given cell and event
+				graph.getEditingValue = function (cell, event) {
+					return cell.getAttribute('name', '')
 				}
 
 				// Overrides method to store a cell label in the model
 				const cellLabelChanged = graph.cellLabelChanged
 				graph.cellLabelChanged = function (cell, newValue, autoSize) {
 					if (mxUtils.isNode(cell.value)) {
-						//if (cell.value.nodeName === 'Variable')
 						// Clones the value for correct undo/redo
 						const elt = cell.value.cloneNode(true)
 						elt.setAttribute('name', newValue)
@@ -117,12 +119,30 @@
 					return createPopupMenu(editor, graph, menu, cell, event)
 				}
 
+				//scroll
+				mxEvent.addMouseWheelListener(mxUtils.bind(this, function (event, up) {
+					const point = mxUtils.convertPoint(graph.container, mxEvent.getClientX(event), mxEvent.getClientY(event))
+					const cell = graph.getCellAt(point.x, point.y)
+					if (!graph.model.isEdge(cell)) {
+						return
+					}
+					let value = Number(cell.getValue())
+					if (up) {
+						graph.model.setValue(cell, '' + (value + 1))
+					} else {
+						graph.model.setValue(cell, '' + (value - 1))
+					}
+				}))
+
 				editor.addAction('properties', function (editor, cell) {
 					if (cell == null) {
 						cell = graph.getSelectionCell()
 					}
 
-					showProperties(graph, cell)
+					if (graph.model.isEdge(cell)) {
+					} else {
+						showCellProperties(graph, cell)
+					}
 				})
 
 				// Add toolbar items
@@ -140,7 +160,7 @@
 						mxUtils.alert('No operations on canvas')
 					}
 				})
-				addToolbarButton(editor, toolbar, 'generateLunaCode', 'Generate LuNA code', 'images/export1.png')
+				addToolbarButton(editor, toolbar, 'generateLunaCode', 'Generate LuNA code', 'images/printer.png')
 
 				editor.addAction('generateCTemplate', function (editor, cell) {
 					const code = generateCCode()
@@ -156,8 +176,7 @@
 						mxUtils.alert('No operations on canvas')
 					}
 				})
-				addToolbarButton(editor, toolbar, 'generateCTemplate', 'Generate C++ template', 'images/export1.png')
-
+				addToolbarButton(editor, toolbar, 'generateCTemplate', 'Generate C++ template', 'images/printer.png')
 
 				editor.addAction('importXML', function (editor, cell) {
 					const xml = mxUtils.prompt('Enter name for new XML code', '')
@@ -166,30 +185,8 @@
 						const codec = new mxCodec(doc)
 						codec.decode(doc.documentElement, graph.getModel())
 					}
-
-					incoming = {}
-					outgoing = {}
-					const parent = graph.getDefaultParent()
-					for (let i = 0; i < graph.model.getChildCount(parent); i++) {
-						const child = graph.model.getChildAt(parent, i)
-						if (graph.model.isEdge(child)) {
-							continue
-						}
-						incoming[child.getId()] = {}
-						outgoing[child.getId()] = {}
-					}
-					for (let i = 0; i < graph.model.getChildCount(parent); i++) {
-						const child = graph.model.getChildAt(parent, i)
-						if (!graph.model.isEdge(child)) {
-							continue
-						}
-						const sourceID = model.getTerminal(child, true).getId()
-						const targetID = model.getTerminal(child, false).getId()
-						incoming[targetID][sourceID] = true
-						outgoing[sourceID][targetID] = true
-					}
 				})
-				addToolbarButton(editor, toolbar, 'importXML', 'Import XML', 'images/export1.png')
+				addToolbarButton(editor, toolbar, 'importXML', 'Import XML', 'editors/images/down.gif')
 
 				editor.addAction('export', function (editor, cell) {
 					const textarea = document.createElement('textarea')
@@ -201,7 +198,7 @@
 					textarea.value = mxUtils.getPrettyXml(node)
 					showModalWindow(graph, 'XML', textarea, 410, 440)
 				})
-				addToolbarButton(editor, toolbar, 'export', 'Export XML', 'images/export1.png')
+				addToolbarButton(editor, toolbar, 'export', 'Export XML', 'editors/images/up.gif')
 
 				editor.addAction('imports', function (editor, cell) {
 					const form = new mxForm('imports')
@@ -209,24 +206,19 @@
 
 					const importedName = form.addText('c++ method name', '')
 					const importedAsWhat = form.addText('code name', '')
-					form.body.appendChild(mxUtils.button('int', function()
-					{
+					form.body.appendChild(mxUtils.button('int', function () {
 						vars.push('int')
 					}))
-					form.body.appendChild(mxUtils.button('real', function()
-					{
+					form.body.appendChild(mxUtils.button('real', function () {
 						vars.push('real')
 					}))
-					form.body.appendChild(mxUtils.button('string', function()
-					{
+					form.body.appendChild(mxUtils.button('string', function () {
 						vars.push('string')
 					}))
-					form.body.appendChild(mxUtils.button('value', function()
-					{
+					form.body.appendChild(mxUtils.button('value', function () {
 						vars.push('value')
 					}))
-					form.body.appendChild(mxUtils.button('name', function()
-					{
+					form.body.appendChild(mxUtils.button('name', function () {
 						vars.push('name')
 					}))
 
@@ -259,7 +251,7 @@
 					form.addButtons(addFunction, closeFunction)
 					wnd = showModalWindow(graph, 'name', form.table, 240, 240)
 				})
-				addToolbarButton(editor, toolbar, 'imports', 'Add LuNA Import', 'images/export1.png')
+				addToolbarButton(editor, toolbar, 'imports', 'Add LuNA Import', 'images/add.png')
 
 				// Add sidebar items
 				const addVertex = function (icon, w, h, style) {
@@ -278,6 +270,8 @@
 				addVertex('editors/images/rectangle.gif', 100, 40, '')
 				addVertex('editors/images/rounded.gif', 40, 40, 'shape=ellipse')
 				addVertex('editors/images/rhombus.gif', 40, 40, 'shape=rhombus')
+				addVertex('editors/images/hexagon.gif', 100, 40, 'shape=hexagon')
+				addVertex('editors/images/symbols/small_event_intermediate.gif', 40, 40, 'shape=doubleEllipse')
 			}
 		}
 
@@ -348,15 +342,18 @@
 				if (style === 'shape=ellipse') {
 					vrtx = xmlDocument.createElement('Variable')
 					vrtx.setAttribute('name', 'var')
-					vrtx.setAttribute('type', 'var')
 				} else if (style === 'shape=rhombus') {
 					vrtx = xmlDocument.createElement('Condition')
 					vrtx.setAttribute('name', 'if')
-					vrtx.setAttribute('type', 'con')
+				} else if (style === 'shape=hexagon') {
+					vrtx = xmlDocument.createElement('LoopIn')
+					vrtx.setAttribute('name', 'loop')
+				} else if (style === 'shape=doubleEllipse') {
+					vrtx = xmlDocument.createElement('LoopOut')
+					vrtx.setAttribute('name', '')
 				} else {
 					vrtx = xmlDocument.createElement('Operation')
 					vrtx.setAttribute('name', 'op')
-					vrtx.setAttribute('type', 'op')
 				}
 
 				// Gets the default parent for inserting new cells.
@@ -367,30 +364,24 @@
 				model.beginUpdate()
 				let vertex
 				try {
-					vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
-					incoming[vertex.getId()] = {}
-					outgoing[vertex.getId()] = {}
+					if (style === 'shape=hexagon') {
+						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, 'shape=hexagon;fillColor=white;fontColor=black')
+					} else if (style === 'shape=doubleEllipse') {
+						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, 'shape=doubleEllipse;fillColor=black;fontColor=white')
+					} else {
+						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
+					}
 
-					if (style === 'shape=rhombus') { //condition
-						let vrtxPlus = xmlDocument.createElement('SubCondition')
+					if (style === 'shape=rhombus') { //additional vertices: conditions
+						let vrtxPlus = xmlDocument.createElement('SubConditionPositive')
 						vrtxPlus.setAttribute('name', '+')
-						vrtxPlus.setAttribute('type', 'subconpos')
 						const vertexPlus = graph.insertVertex(parent, null, vrtxPlus, x + 80, y - 20, w / 2, h / 2, 'fillColor=black;fontColor=white')
 						graph.insertEdge(parent, null, null, vertex, vertexPlus)
-						incoming[vertexPlus.getId()] = {}
-						incoming[vertexPlus.getId()][vertex.getId()] = true
-						outgoing[vertexPlus.getId()] = {}
-						outgoing[vertex.getId()][vertexPlus.getId()] = true
 
-						let vrtxMinus = xmlDocument.createElement('SubCondition')
+						let vrtxMinus = xmlDocument.createElement('SubConditionNegative')
 						vrtxMinus.setAttribute('name', '-')
-						vrtxMinus.setAttribute('type', 'subconneg')
 						const vertexMinus = graph.insertVertex(parent, null, vrtxMinus, x + 80, y + 40, w / 2, h / 2, 'fillColor=black;fontColor=white')
 						graph.insertEdge(parent, null, null, vertex, vertexMinus)
-						incoming[vertexMinus.getId()] = {}
-						incoming[vertexMinus.getId()][vertex.getId()] = true
-						outgoing[vertexMinus.getId()] = {}
-						outgoing[vertex.getId()][vertexMinus.getId()] = true
 					}
 				} finally {
 					model.endUpdate()
@@ -423,90 +414,197 @@
 			return img
 		}
 
-		function generateLunaCode (graph) {
-			const code = []
-			const df = ['df ']
-			const parent = graph.getDefaultParent()
-			const imports = []
+		function getIncoming (graph, vertex) {
+			if (vertex.edges === null) {
+				return []
+			}
+			const incoming = []
+			for (let i = 0; i < vertex.edges.length; i++) {
+				const source = graph.model.getTerminal(vertex.edges[i], true)
+				if (source === vertex) {
+					continue
+				}
+				incoming.push(source)
+			}
+			return incoming
+		}
 
+		function getOutgoing (graph, vertex) {
+			if (vertex.edges === null) {
+				return []
+			}
+			const outgoing = []
+			for (let i = 0; i < vertex.edges.length; i++) {
+				const target = graph.model.getTerminal(vertex.edges[i], false)
+				if (target === vertex) {
+					continue
+				}
+				outgoing.push(target)
+			}
+			return outgoing
+		}
+
+		function processOperation (graph, operation) {
+			const code = []
+			const conditionsCode = []
+
+			// IF CODE
+			let incomingIF = getIncoming(graph, operation)
+			while (incomingIF.length > 0) {
+				const ifCondition = incomingIF.pop()
+				if (ifCondition.value.nodeName === 'SubConditionPositive') {
+					const ifBlock = getIncoming(graph, ifCondition)[0]
+					incomingIF = incomingIF.concat(getIncoming(graph, ifBlock))
+					conditionsCode.push(ifBlock.getAttribute('name', ''))
+				} else if (ifCondition.value.nodeName === 'SubConditionNegative') {
+					const ifBlock = getIncoming(graph, ifCondition)[0]
+					incomingIF = incomingIF.concat(getIncoming(graph, ifBlock))
+					conditionsCode.push('!' + ifBlock.getAttribute('name', ''))
+				}
+			}
+			if (conditionsCode.length > 0) {
+				code.push('if (' + conditionsCode.join(' && ') + ') { \n')
+			}
+
+			// BASE CODE
+			const additionalName = operation.getAttribute('addName', '')
+			if (additionalName !== '') {
+				code.push('cf ' + additionalName + ': ')
+			}
+			code.push(operation.getAttribute('name', '') + '(')
+
+			const incoming = []
+			const outgoing = []
+			if (operation.edges !== null) {
+				for (let i = 0; i < operation.edges.length; i++) {
+					const source = graph.model.getTerminal(operation.edges[i], true)
+					const target = graph.model.getTerminal(operation.edges[i], false)
+					if (source === operation && target.value.nodeName === 'Variable') {
+						visitedVariables.add(target.getId())
+						outgoing.push({
+							'name': target.getAttribute('name', ''),
+							'order': operation.edges[i].getValue()
+						})
+					} else if (target === operation && source.value.nodeName === 'Variable') {
+						visitedVariables.add(source.getId())
+						incoming.push({
+							'name': source.getAttribute('name', ''),
+							'order': operation.edges[i].getValue()
+						})
+					}
+				}
+			}
+			incoming.sort(function (a, b) {
+				return ((a.order < b.order) ? -1 : ((a.order === b.order && a.name < b.name) ? -1 : 1))
+			})
+			outgoing.sort(function (a, b) {
+				return ((a.order < b.order) ? -1 : ((a.order === b.order && a.name < b.name) ? -1 : 1))
+			})
+			code.push('#in ')
+			for (let k = 0; k < incoming.length; k++) {
+				code.push(incoming[k].name)
+				code.push(', ')
+			}
+			code.push('#out ')
+			for (let k = 0; k < outgoing.length; k++) {
+				code.push(outgoing[k].name)
+				code.push(', ')
+			}
+			if (outgoing.length !== 0) {
+				code.pop()
+			} else {
+				code.pop()
+				code.pop()
+			}
+			code.push(');\n')
+			if (conditionsCode.length > 0) {
+				code.push('} \n')
+			}
+			return code.join('')
+		}
+
+		function traverseLoop (graph, root) {
+			const code = []
+			code.push('for ' + root.getAttribute('iterationIndex', '') + ' = ' +
+				root.getAttribute('startBound', '') + '..' + root.getAttribute('endBound', '') + '{\n')
+
+			let stack = getOutgoing(graph, root)
+			visitedLoops.add(root.getId())
+
+			while (stack.length > 0) {
+				const current = stack.pop()
+				if (visitedOperations.has(current.getId())) {
+					continue
+				}
+
+				if (current.value.nodeName === 'Variable') {
+					//skip
+					const outgoing = getOutgoing(graph, current)
+					stack = stack.concat(outgoing)
+					visitedVariables.add(current.getId())
+				} else if (current.value.nodeName === 'Condition') {
+					//skip
+					const outgoing = getOutgoing(graph, current)
+					stack = stack.concat(outgoing)
+				} else if (current.value.nodeName === 'Operation') {
+					const outgoing = getOutgoing(graph, current)
+					stack = stack.concat(outgoing)
+					code.push(processOperation(graph, current))
+					visitedOperations.add(current.getId())
+				} else if (current.value.nodeName === 'LoopIn') {
+					throw 'not supported'
+				} else if (current.value.nodeName === 'LoopOut') {
+					// stop
+				}
+			}
+			code.push('}\n')
+			return code.join('')
+		}
+
+		function generateLunaCode (graph) {
+			const imports = []
 			for (let i = 0; i < all_imports1.length; i++) {
 				const var1 = all_imports1[i]
 				const var2 = all_imports3[i]
 				imports.push('import ' + var1 + ' as ' + var2 + ';\n')
 			}
 
+			const parent = graph.getDefaultParent()
+			const loopStarts = []
 			for (let i = 0; i < graph.model.getChildCount(parent); i++) {
 				const child = graph.model.getChildAt(parent, i)
-				if (!graph.model.isEdge(child)) {
-					if (child.getAttribute('type', '') === 'var') {
-						df.push(child.getAttribute('name', ''))
-						df.push(', ')
-					} else if (child.getAttribute('type', '') === 'op') {
-						let ifsCode = []
-						let nextIfsIds = []
-						nextIfsIds.push(child.getId())
-						while (nextIfsIds.length > 0) {
-							const nextElement = nextIfsIds.pop()
-							Object.keys(incoming[nextElement]).forEach(function (key, index) {
-								const thatcell = graph.model.getCell(key)
-								if (thatcell.getAttribute('type', '') === 'subconpos') {
-									Object.keys(incoming[thatcell.getId()]).forEach(function (ifCellId, index2) {
-										nextIfsIds.push(ifCellId)
-										ifsCode.push(graph.model.getCell(ifCellId).getAttribute('name', ''))
-									})
-								} else if (thatcell.getAttribute('type', '') === 'subconneg') {
-									Object.keys(incoming[thatcell.getId()]).forEach(function (ifCellId, index2) {
-										nextIfsIds.push(ifCellId)
-										ifsCode.push('!' + graph.model.getCell(ifCellId).getAttribute('name', ''))
-									})
-								}
-							})
-						}
-						if (ifsCode.length > 0) {
-							code.push('if (' + ifsCode.join(' && ') + ') { \n')
-						}
+				if (graph.model.isEdge(child)) {
+					continue
+				}
+				if (child.value.nodeName === 'LoopIn') {
+					loopStarts.push(child)
+				}
+			}
 
-						let unpushSecond = false
-						const additionalName = child.getAttribute('addName', '')
-						if (additionalName !== '') {
-							code.push('cf ' + additionalName + ': ')
-						}
-						code.push(child.getAttribute('name', '') + '(')
-						code.push('#in ')
-						Object.keys(incoming[child.getId()]).forEach(function (key, index) {
-							const value = incoming[child.getId()][key]
-							if (value && graph.model.getCell(key).getAttribute('type', '') === 'var') {
-								const tempCell = graph.model.getCell(key)
-								code.push(tempCell.getAttribute('name', ''))
-								code.push(', ')
-							}
-						})
+			const code = []
+			visitedOperations = new Set()
+			visitedVariables = new Set()
+			visitedLoops = new Set()
+			for (let i = 0; i < loopStarts.length; i++) {
+				if (visitedLoops.has(loopStarts[i])) {
+					continue
+				}
+				code.push(traverseLoop(graph, loopStarts[i]))
+			}
 
-						code.push('#out ')
-						Object.keys(outgoing[child.getId()]).forEach(function (key, index) {
-							const value = outgoing[child.getId()][key]
-							if (value && graph.model.getCell(key).getAttribute('type', '') === 'var') {
-								const tempCell = graph.model.getCell(key)
-								code.push(tempCell.getAttribute('name', ''))
-								code.push(', ')
-								unpushSecond = true
-							}
-
-						})
-
-						if (unpushSecond) {
-							code.pop()
-						} else {
-							code.pop()
-							code.pop()
-						}
-						code.push(');\n')
-						if (ifsCode.length > 0) {
-							code.push('} \n')
-						}
-					}
-				} else {
-					//console.log('edge')
+			const df = ['df ']
+			for (let i = 0; i < graph.model.getChildCount(parent); i++) {
+				const child = graph.model.getChildAt(parent, i)
+				if (graph.model.isEdge(child)) {
+					continue
+				}
+				if (child.value.nodeName === 'Variable' &&  !(visitedVariables.has(child.getId()))) {
+					df.push(child.getAttribute('name', ''))
+					df.push(', ')
+					visitedVariables.add(child.getId())
+				} else if (child.value.nodeName === 'Operation' && !(visitedOperations.has(child.getId()))) {
+					code.push(processOperation(graph, child))
+					visitedOperations.add(child.getId())
 				}
 			}
 			if (df.length !== 1) {
@@ -517,6 +615,7 @@
 			} else {
 				df.push(';\n')
 			}
+
 			return imports.join('') + 'sub main() {\n' + df.join('') + code.join('') + '}\n'
 		}
 
@@ -582,23 +681,26 @@
 			}
 		}
 
-		function showProperties (graph, cell) {
+		function showCellProperties (graph, cell) {
 			// Creates a form for the user object inside the cell
 			const form = new mxForm('properties')
 
 			let importField
-			if (cell.getAttribute('type', '') === 'op') {
+			if (cell.value.nodeName === 'Operation') {
 				importField = form.addText('Additional name', cell.getValue().getAttribute('addName'))
+			}
+			let iterationIndex
+			let startBound
+			let endBound
+			if (cell.value.nodeName === 'LoopIn') {
+				iterationIndex = form.addText('Iteration Index', cell.getValue().getAttribute('iterationIndex'))
+				startBound = form.addText('Start Bound', cell.getValue().getAttribute('startBound'))
+				endBound = form.addText('End Bound', cell.getValue().getAttribute('endBound'))
 			}
 			/*
 			var p = form.addCheckbox('', '')
-			var d = form.addText('', '')
 			const c = form.addCombo('imports', false, all_imports1.length + 1)
 			form.addOption(comboField, "none", null, true)
-			for (let i = 0; i < all_imports1.length; i++) {
-				const var1 = all_imports1[i]
-				const var2 = all_imports3[i]
-				form.addOption(comboField, "import " + var1 + " as " + var2, null, false)
 			}*/
 
 			let wnd = null
@@ -608,6 +710,13 @@
 				if (importField !== undefined) {
 					const clone = cell.value
 					clone.setAttribute('addName', importField.value)
+					graph.model.setValue(cell, clone)
+				}
+				if (iterationIndex !== undefined) {
+					const clone = cell.value
+					clone.setAttribute('iterationIndex', iterationIndex.value)
+					clone.setAttribute('startBound', startBound.value)
+					clone.setAttribute('endBound', endBound.value)
 					graph.model.setValue(cell, clone)
 				}
 				wnd.destroy()
