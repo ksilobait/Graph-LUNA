@@ -253,6 +253,21 @@
 				})
 				addToolbarButton(editor, toolbar, 'imports', 'Add LuNA Import', 'images/add.png')
 
+				editor.addAction('zoomIn', function (editor, cell) {
+					graph.zoomIn()
+				})
+				addToolbarButton(editor, toolbar, 'zoomIn', 'Zoom In', 'images/zoom_in32.png')
+
+				editor.addAction('zoomOut', function (editor, cell) {
+					graph.zoomOut()
+				})
+				addToolbarButton(editor, toolbar, 'zoomOut', 'Zoom Out', 'images/zoom_out32.png')
+
+				editor.addAction('actualSize', function (editor, cell) {
+					graph.zoomActual()
+				})
+				addToolbarButton(editor, toolbar, 'actualSize', 'Actual Size', 'images/view_1_132.png')
+
 				// Add sidebar items
 				const addVertex = function (icon, w, h, style) {
 					//const vertex = new mxCell(null, new mxGeometry(0, 0, w, h), style)
