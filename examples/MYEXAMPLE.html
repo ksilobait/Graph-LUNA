@@ -286,7 +286,7 @@
 				addVertex('editors/images/rounded.gif', 40, 40, 'shape=ellipse')
 				addVertex('editors/images/rhombus.gif', 40, 40, 'shape=rhombus')
 				addVertex('editors/images/hexagon.gif', 100, 40, 'shape=hexagon')
-				addVertex('editors/images/symbols/small_event_intermediate.gif', 40, 40, 'shape=doubleEllipse')
+				addVertex('editors/images/grayrectangle.png', 40, 40, 'shape=doubleEllipse')
 			}
 		}
 
@@ -382,7 +382,7 @@
 					if (style === 'shape=hexagon') {
 						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, 'shape=hexagon;fillColor=white;fontColor=black')
 					} else if (style === 'shape=doubleEllipse') {
-						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, 'shape=doubleEllipse;fillColor=black;fontColor=white')
+						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, 'shape=ext;fillColor=gray;fontColor=white')
 					} else {
 						vertex = graph.insertVertex(parent, null, vrtx, x, y, w, h, style)
 					}
@@ -390,12 +390,12 @@
 					if (style === 'shape=rhombus') { //additional vertices: conditions
 						let vrtxPlus = xmlDocument.createElement('SubConditionPositive')
 						vrtxPlus.setAttribute('name', '+')
-						const vertexPlus = graph.insertVertex(parent, null, vrtxPlus, x + 80, y - 20, w / 2, h / 2, 'fillColor=black;fontColor=white')
+						const vertexPlus = graph.insertVertex(parent, null, vrtxPlus, x + 80, y - 20, w / 2, h / 2, 'shape=ellipse;fillColor=black;fontColor=white')
 						graph.insertEdge(parent, null, null, vertex, vertexPlus)
 
 						let vrtxMinus = xmlDocument.createElement('SubConditionNegative')
 						vrtxMinus.setAttribute('name', '-')
-						const vertexMinus = graph.insertVertex(parent, null, vrtxMinus, x + 80, y + 40, w / 2, h / 2, 'fillColor=black;fontColor=white')
+						const vertexMinus = graph.insertVertex(parent, null, vrtxMinus, x + 80, y + 40, w / 2, h / 2, 'shape=ellipse;fillColor=black;fontColor=white')
 						graph.insertEdge(parent, null, null, vertex, vertexMinus)
 					}
 				} finally {
@@ -569,7 +569,7 @@
 					code.push(processOperation(graph, current, true))
 					visitedOperations.add(current.getId())
 				} else if (current.value.nodeName === 'LoopIn') {
-					throw 'not supported'
+					throw new Error('not supported')
 				} else if (current.value.nodeName === 'LoopOut') {
 					// stop
 				}
